@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Residue · 氨基酸序列工具</title>
+  <style>
+:root {
+  color-scheme: light;
+  --paper: #f6f8f5;
+  --card: #fff;
+  --ink: #182922;
+  --muted: #53655b;
+  --faint: #6d7b72;
+  --line: #dce4dd;
+  --soft-line: #e8eee8;
+  --green: #12674e;
+  --green-dark: #0b503d;
+  --green-wash: #e9f3ed;
+  --sans: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", "Microsoft YaHei", monospace;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--paper);
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { min-width: 280px; margin: 0; font-size: 14px; line-height: 1.55; }
+button, textarea { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .56; }
+button:focus-visible, summary:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid #73a893;
+  outline-offset: 3px;
+}
+::selection { background: #c8e9d7; color: #183d2d; }
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.shell { width: min(1200px, calc(100% - 80px)); margin-inline: auto; }
+.icon { width: 18px; height: 18px; display: inline-block; flex: 0 0 auto; vertical-align: middle; }
+.top { background: #fff; border-bottom: 1px solid var(--line); }
+.top > .shell { min-height: 55px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.brand { display: inline-flex; align-items: center; gap: 11px; min-width: 0; }
+.brand-mark { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; color: #fff; background: var(--green); }
+.brand-mark .icon { width: 21px; height: 21px; }
+.brand-name { font-size: 17px; font-weight: 700; letter-spacing: -.025em; }
+.brand-sub { border-left: 1px solid var(--line); padding-left: 12px; color: var(--muted); font-size: 12px; }
+main.shell { padding-block: 16px 36px; }
+.button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 7px; min-height: 36px; max-width: 100%; padding: 6px 13px; border: 1px solid #ced9d0; border-radius: 7px; background: #fff; color: #30463a; font-size: 13px; font-weight: 600; line-height: 1.45; text-decoration: none; }
+.button .icon { width: 15px; height: 15px; }
+.button:hover { border-color: #a7bcae; background: #f4f8f4; }
+.button.primary { min-height: 38px; padding-inline: 17px; background: var(--green); border-color: var(--green); color: #fff; }
+.button.primary:hover { background: var(--green-dark); border-color: var(--green-dark); }
+.workspace { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); align-items: start; gap: 20px; margin-top: 20px; }
+.card { min-width: 0; padding: 20px 23px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 2px 5px rgb(21 51 31 / 3%); }
+
+.card-heading, .editor-foot, .copy-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.card-heading { flex-wrap: wrap; margin-bottom: 13px; }
+.card-title { display: flex; align-items: center; gap: 9px; margin: 0; font-size: 17px; letter-spacing: -.025em; font-weight: 680; line-height: 1.5; }
+.card-title .icon { color: var(--green); width: 19px; height: 19px; }
+.unit, #result-summary, #comparison-summary { max-width: 100%; overflow-wrap: anywhere; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.unit { padding: 2px 8px; border-radius: 5px; background: #f1f5f1; }
+textarea { display: block; width: 100%; min-height: 72px; padding: 11px 13px; resize: vertical; font: 14px/1.65 var(--mono); border: 1px solid #cfdad1; border-radius: 7px; color: #263c30; background: #fbfcfa; }
+textarea::placeholder { color: #738177; opacity: 1; }
+textarea:hover { border-color: #adbfaf; }
+textarea:focus { border-color: var(--green); }
+textarea[aria-invalid="true"] { border-color: #ad5231; background: #fffaf7; }
+.sequence-editor { position: relative; }
+#reference, #numbered-input {
+  padding: 10px 18px;
+  font: 14px/2.35 var(--mono);
+  font-variant-ligatures: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  tab-size: 8;
+}
+#reference { height: 157px; }
+.input-ruler-viewport {
+  position: absolute; inset: 1px; overflow: hidden; pointer-events: none;
+  user-select: none; border-radius: 6px;
+}
+#numbered-input { position: absolute; left: 0; top: 0; color: transparent; }
+.input-tick { position: relative; }
+.input-tick::after {
+  content: attr(data-position); position: absolute; right: 0; bottom: 100%;
+  font: 500 10px/1 var(--mono); color: #48705a;
+}
+#commands { height: 75px; }
+.hint, .legend, .detail, .format-help, .input-error { overflow-wrap: anywhere; font-size: 12px; color: var(--muted); }
+.hint { margin: 9px 0 0; line-height: 1.65; }
+.format-row { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 16px; row-gap: 3px; }
+.format-help { margin: 8px 0 0; }
+details summary { cursor: pointer; color: var(--green); font-weight: 600; }
+details p { margin: 6px 0 0; line-height: 1.7; }
+.input-error { margin: 9px 0 0; padding: 7px 10px; border-radius: 5px; background: #fdf2ec; color: #843e29; }
+
+.editor-foot { margin-top: 14px; flex-wrap: wrap; }
+.editor-foot .hint { margin: 0; }
+kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line); border-bottom-color: #cad5ca; border-radius: 4px; background: #fafbf9; color: #526256; font: 11px/1.6 var(--mono); }
+#result-panel { border-top: 1px solid var(--soft-line); margin-top: 17px; padding-top: 13px; }
+#result-panel .card-heading { margin-bottom: 8px; }
+.sub-title { margin: 0; font-size: 14px; font-weight: 650; }
+#empty { margin: 0; color: var(--muted); font-size: 13px; }
+.empty { display: grid; justify-items: center; align-content: center; gap: 7px; min-height: 180px; padding: 17px 12px; border: 1px dashed #d3dfd4; border-radius: 8px; text-align: center; background-color: #f7faf6; background-image: radial-gradient(circle at 1px 1px, #dce7dd .8px, transparent 1px); background-size: 12px 12px; }
+.empty strong { font-size: 15px; font-weight: 650; color: #40594a; }
+.empty p { max-width: 34em; margin: 0; color: var(--muted); font-size: 12px; }
+.residue-illustration { display: grid; grid-template-columns: repeat(4, 26px); gap: 3px; margin-bottom: 3px; }
+.residue-illustration i { display: grid; place-items: center; height: 23px; border: 1px solid #c4d7c9; border-radius: 4px; background: #fff; color: #62786b; font: 600 13px/1 var(--mono); }
+.residue-illustration i:nth-child(6) { background: #d9eee0; border-color: #9ac4a9; color: var(--green-dark); }
+#results, #comparison-results { display: grid; gap: 10px; min-width: 0; max-height: 65vh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #b9caba transparent; }
+.result-item { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fcfdfb; overflow-wrap: anywhere; }
+.result-item h3 { margin: 0; font-size: 14px; line-height: 1.5; font-weight: 650; }
+.result-item.error { color: #773c2a; background: #fdf6f1; border-color: #edcfbf; }
+.result-item.error .detail { color: #804936; }
+.detail { margin: 5px 0 0; }
+.marks { color: var(--green-dark); font: 600 13px/1.7 var(--mono); margin: 7px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.answer { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 9px 0 0; color: #365a44; }
+.letter { display: inline-grid; min-width: 33px; height: 33px; padding: 0 6px; place-items: center; border: 1px solid #bfdac8; border-radius: 6px; background: var(--green-wash); color: var(--green-dark); font: 650 18px/1 var(--mono); }
+.numbered-sequence { min-width: 0; color: #253e2f; font: 14px/1.45 var(--mono); font-variant-numeric: tabular-nums; white-space: normal; }
+.residue-group { position: relative; display: inline-block; vertical-align: top; margin: 0 .8ch .2em 0; padding-top: .95em; white-space: nowrap; }
+.residue-group[data-position]::after { content: attr(data-position); content: attr(data-position) / ""; position: absolute; top: .1em; right: 0; color: #597164; font: 10px/1 var(--mono); pointer-events: none; -webkit-user-select: none; user-select: none; }
+.output-sequence { width: 100%; margin: 11px 0 0; padding: 9px 12px 7px; border: 1px solid var(--soft-line); border-radius: 6px; background: #fff; }
+.numbered-sequence mark { border-radius: 2px; background: #cce8d6; color: #164d32; font-weight: 700; }
+.copy-row { justify-content: flex-end; flex-wrap: wrap; margin-top: 9px; }
+.copy-row .button { min-height: 30px; padding: 4px 9px; font-size: 12px; }
+.copy-row > span { color: var(--muted); font-size: 12px; }
+.examples { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 10px; }
+.example { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 3px 7px; border: 1px solid var(--soft-line); border-radius: 5px; background: #f6f9f5; color: #4d6655; font-size: 11px; }
+.example:hover { background: var(--green-wash); border-color: #b8cebf; }
+.example code, .legend code, .format-help code { color: #365940; font: 600 12px var(--mono); }
+.example .icon { width: 10px; height: 10px; }
+.legend { border-top: 1px solid var(--soft-line); padding-top: 12px; margin-top: 15px; }
+@media (max-width: 980px) {
+  .shell { width: calc(100% - 48px); }
+  .workspace { gap: 16px; margin-top: 16px; }
+  .card { padding: 18px; }
+}
+@media (max-width: 730px) {
+  .shell { width: calc(100% - 32px); }
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  main.shell { padding-top: 12px; }
+  .card { padding: 16px; }
+  .empty { min-height: 145px; }
+  #reference { height: 145px; }
+  #results, #comparison-results { max-height: none; overflow: visible; }
+}
+@media (max-width: 480px) {
+  .brand-sub { display: none; }
+  .workspace { margin-top: 12px; gap: 12px; }
+}
+  </style>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true" focusable="false" hidden>
+  <symbol id="chain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 16h4v-5h5V6h5M7 20h5v-5h5v-5h4" stroke-width="2.4"/>
+  </symbol>
+  <symbol id="demo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 3h6m-5 0v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3M7.5 15h9"/>
+  </symbol>
+  <symbol id="position-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 6h16M4 12h16M4 18h16"/><rect x="7" y="4" width="4" height="4" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="10" width="4" height="4" rx="1" fill="currentColor" stroke="none"/><rect x="9" y="16" width="4" height="4" rx="1" fill="currentColor" stroke="none"/>
+  </symbol>
+  <symbol id="compare-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4"/>
+  </symbol>
+  <symbol id="arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 12h15m-6-6 6 6-6 6"/>
+  </symbol>
+  <symbol id="copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"/>
+  </symbol>
+  <symbol id="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m9 5 7 7-7 7"/>
+  </symbol>
+</svg>
+<header class="top">
+  <div class="shell">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><svg class="icon" focusable="false"><use href="#chain"/></svg></span>
+      <span class="brand-name" lang="en">Residue</span>
+      <span class="brand-sub">氨基酸序列工具</span>
+    </div>
+    <button id="demo" class="button" type="button"><svg class="icon" aria-hidden="true" focusable="false"><use href="#demo-icon"/></svg>载入示例</button>
+  </div>
+</header>
+<main class="shell" aria-labelledby="app-heading">
+  <h1 id="app-heading" class="sr">氨基酸序列工具</h1>
+  <section class="card sequence-card" aria-labelledby="reference-heading">
+    <div class="card-heading">
+      <h2 id="reference-heading" class="card-title"><label for="reference">蛋白质序列</label></h2>
+      <span id="ref-count" class="unit">0 条序列</span>
+    </div>
+    <div class="sequence-editor">
+      <textarea id="reference" rows="4" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="ref-help input-error" placeholder="在此粘贴一条或多条蛋白质序列，支持 FASTA"></textarea>
+      <div class="input-ruler-viewport" aria-hidden="true"><div id="numbered-input"></div></div>
+    </div>
+    <div class="format-row">
+      <p id="ref-help" class="hint">相近序列可每条放一行，也可粘贴 FASTA。输入多条后自动与第一条比较，位点从 1 开始。</p>
+      <details class="format-help">
+        <summary>序列输入格式</summary>
+        <p>FASTA 每条以 <code>&gt;名称</code> 开头，序列可以折行。纯文本中，多条折行序列之间请留一个空行。若一条长序列已折行，可在开头加上 <code>&gt;名称</code>，明确将整段作为一条。</p>
+      </details>
+    </div>
+    <p id="input-error" class="input-error" role="status" hidden></p>
+  </section>
+  <div class="workspace">
+    <section id="command-panel" class="card" aria-labelledby="command-heading">
+      <div class="card-heading">
+        <h2 id="command-heading" class="card-title"><svg class="icon" aria-hidden="true" focusable="false"><use href="#position-icon"/></svg><label for="commands">位点查询与突变</label></h2>
+      </div>
+      <div id="examples" class="examples" role="group" aria-label="指令示例"></div>
+      <textarea id="commands" rows="2" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="command-help command-keys" placeholder="输入位点或突变指令，例如 E2A, T4S"></textarea>
+      <p id="command-help" class="hint">同一行用逗号或空格组合多个突变。每行独立处理，均作用于第一条序列。</p>
+      <div class="editor-foot">
+        <span id="command-keys" class="hint"><kbd>Enter</kbd> 执行 · <kbd>Shift+Enter</kbd> 换行</span>
+        <button id="execute" class="button primary" type="button">执行指令<svg class="icon" aria-hidden="true" focusable="false"><use href="#arrow-right"/></svg></button>
+      </div>
+      <section id="result-panel" aria-labelledby="results-heading">
+        <div class="card-heading">
+          <h3 id="results-heading" class="sub-title">指令结果</h3>
+          <span id="result-summary"></span>
+        </div>
+        <div id="empty"><span id="empty-title">等待执行指令。</span> <span id="empty-help">输入位点或突变指令后，在这里查看结果。</span></div>
+        <div id="results" hidden></div>
+      </section>
+    </section>
+    <section id="comparison-panel" class="card" aria-labelledby="comparison-heading">
+      <div class="card-heading">
+        <h2 id="comparison-heading" class="card-title"><svg class="icon" aria-hidden="true" focusable="false"><use href="#compare-icon"/></svg>序列比较</h2>
+        <span id="comparison-summary" role="status" aria-live="polite" aria-atomic="true"></span>
+      </div>
+      <div id="comparison-empty" class="empty">
+        <div class="residue-illustration" aria-hidden="true"><i>M</i><i>E</i><i>K</i><i>T</i><i>M</i><i>A</i><i>K</i><i>T</i></div>
+        <strong id="comparison-empty-title">等待比较序列</strong>
+        <p id="comparison-empty-help">在上方粘贴两条或更多序列，即可查看每个样本与第一条的差异。</p>
+      </div>
+      <div id="comparison-results" hidden></div>
+      <details class="legend">
+        <summary>如何阅读差异标记</summary>
+        <p><code>E43A</code> 表示参考序列第 43 位的 E 变为 A。<code>E43del</code> 是单点缺失，<code>E43_K45del</code> 是第 43 至 45 位连续缺失。</p>
+        <p><code>43_44insXY</code> 表示在参考第 43 和 44 位之间插入 XY。<code>0_1insX</code> 表示首端插入。若参考长 80 位，<code>80_81insX</code> 表示末端插入。重复区的同一处变化可能有多个等价标记。</p>
+      </details>
+    </section>
+  </div>
+  <div id="announce" class="sr" role="status" aria-live="polite" aria-atomic="true"></div>
+</main>
+<script>
+const SequenceCore = (() => {
+  // Bare newlines may be wrapping or record separators. Only infer separate
+  // records when the lines resemble variants; FASTA and blank blocks are explicit.
+  function similarLines(first, other) {
+    if (first === other) return true;
+    const size = Math.max(first.length, other.length);
+    const tolerance = Math.max(Math.min(2, Math.floor(size / 2)), Math.floor(size / 4));
+    if (Math.abs(first.length - other.length) > tolerance) return false;
+
+    let start = 0;
+    let firstEnd = first.length;
+    let otherEnd = other.length;
+    while (start < firstEnd && start < otherEnd && first[start] === other[start]) start++;
+    while (start < firstEnd && start < otherEnd && first[firstEnd - 1] === other[otherEnd - 1]) {
+      firstEnd--;
+      otherEnd--;
+    }
+    if (Math.max(firstEnd, otherEnd) - start <= tolerance) return true;
+    if (firstEnd === otherEnd) {
+      let different = 0;
+      for (let i = start; i < firstEnd && different <= tolerance; i++) {
+        if (first[i] !== other[i]) different++;
+      }
+      if (different <= tolerance) return true;
+    }
+
+    // Exact on short spans. At larger sizes check at most 64 nearby four-letter
+    // anchors so retesting an edited input never entails a full alignment.
+    if (Math.max(firstEnd, otherEnd) - start <= 64) {
+      const width = otherEnd - start + 1;
+      let previous = Uint8Array.from({ length: width }, (_, i) => i);
+      let next = new Uint8Array(width);
+      for (let i = start; i < firstEnd; i++) {
+        next[0] = i - start + 1;
+        for (let j = 1; j < width; j++) {
+          const replace = previous[j - 1] + Number(first[i] !== other[start + j - 1]);
+          next[j] = Math.min(replace, previous[j] + 1, next[j - 1] + 1);
+        }
+        [previous, next] = [next, previous];
+      }
+      return previous[width - 1] <= tolerance;
+    }
+    const last = first.length - 4;
+    const stride = Math.max(1, Math.ceil((last + 1) / 64));
+    const radius = Math.min(tolerance, 128);
+    let seen = 0;
+    let hits = 0;
+    for (let i = 0; i <= last; i += stride) {
+      const nearby = other.slice(Math.max(0, i - radius), i + radius + 4);
+      if (nearby.includes(first.slice(i, i + 4))) hits++;
+      seen++;
+    }
+    return hits >= seen * 0.7;
+  }
+
+  function inferLineRecords(lines) {
+    if (lines.length < 2) return false;
+    const valid = lines.filter(row => !row.invalid);
+    const anchor = valid[0] || lines[0];
+    // With two valid lines we have evidence independent of malformed siblings.
+    const candidates = valid.length >= 2 ? valid : lines;
+    const first = anchor.compact.toUpperCase();
+    return candidates.every(row => {
+      if (row === anchor) return true;
+      let other = row.compact;
+      if (row.invalid && !anchor.invalid && other.length === first.length) {
+        // Unknown symbols are neutral only for inferring record boundaries.
+        other = other.replace(/[^a-zA-Z]/g, (_, i) => first[i]);
+      }
+      return similarLines(first, other.toUpperCase());
+    });
+  }
+
+  function parseInput(raw) {
+    const records = [];
+    let pending = [];
+    let header = null;
+
+    function append(body, title) {
+      const fallback = records.length ? '样本 ' + records.length : '野生型';
+      const name = title?.name || fallback;
+      let error;
+      if (title && !title.name) error = `第 ${title.line} 行的 FASTA 标题缺少名称。`;
+      else if (!body.length) error = `第 ${title.line} 行的 FASTA 记录“${name}”缺少序列。`;
+      let length = 0;
+      for (const row of body) {
+        if (error) break;
+        if (row.invalid) {
+          const column = row.invalid.index;
+          const position = length + row.text.slice(0, column).replace(/\s/g, '').length + 1;
+          error = `“${name}”第 ${row.line} 行第 ${column + 1} 列（序列第 ${position} 位）有不支持的字符「${row.invalid[0]}」。请输入单字母氨基酸代码。`;
+        }
+        length += row.compact.length;
+      }
+      records.push(error ? { name, error } : {
+        name,
+        sequence: body.map(row => row.compact.toUpperCase()).join(''),
+        firstLine: body[0].line,
+        lastLine: body[body.length - 1].line
+      });
+    }
+
+    function flush() {
+      if (header) {
+        append(pending.filter(row => row.compact), header);
+      } else {
+        const blocks = [];
+        let block = [];
+        for (const row of pending) {
+          if (row.compact) block.push(row);
+          else if (block.length) { blocks.push(block); block = []; }
+        }
+        if (block.length) blocks.push(block);
+        if (blocks.length === 1 && inferLineRecords(blocks[0])) {
+          for (const row of blocks[0]) append([row]);
+        } else {
+          for (const group of blocks) append(group);
+        }
+      }
+      pending = [];
+    }
+
+    const lines = raw.split(/\r\n|[\n\r\u2028\u2029]/);
+    for (let i = 0; i < lines.length; i++) {
+      const text = lines[i];
+      const trimmed = text.trim();
+      if (trimmed.startsWith('>')) {
+        flush();
+        header = { name: trimmed.slice(1).trim(), line: i + 1 };
+      } else {
+        pending.push({ text, line: i + 1, compact: text.replace(/\s/g, ''), invalid: /[^a-zA-Z\s]/u.exec(text) });
+      }
+    }
+    flush();
+    return records;
+  }
+
+  function runCommand(sequence, raw) {
+    const input = raw.trim();
+    if (!input) throw new Error('请输入位点或突变指令，例如 43、E43 或 E43A。');
+    const tokens = input.split(/[\s,，]+/);
+    const changes = new Map();
+
+    for (const token of tokens) {
+      const match = /^([A-Za-z]?)([0-9]+)([A-Za-z]?)$/.exec(token);
+      if (!match || (!match[1] && match[3])) {
+        throw new Error(`无法识别指令「${token}」。请使用 43、E43 或 E43A 这样的格式。`);
+      }
+      const [, source, digits, target] = match;
+      if (tokens.length > 1 && !target) {
+        throw new Error(`多点突变中的每项都需要写明原字母、位点和目标字母，请检查「${token}」。`);
+      }
+      const position = Number(digits);
+      if (position < 1 || position > sequence.length) {
+        throw new Error(`第 ${digits} 位超出范围。当前野生型共有 ${sequence.length} 个氨基酸，位点从 1 开始。`);
+      }
+      const actual = sequence[position - 1];
+      if (!source) return { kind: 'query', position, actual };
+      if (actual !== source.toUpperCase()) {
+        throw new Error(`第 ${position} 位实际为 ${actual}，你输入的是 ${source.toUpperCase()}。`);
+      }
+      if (!target) return { kind: 'check', position, actual };
+
+      const next = target.toUpperCase();
+      if (changes.has(position) && changes.get(position) !== next) {
+        throw new Error(`第 ${position} 位同时指定了 ${changes.get(position)} 和 ${next} 两个目标字母，请保留一个。`);
+      }
+      if (next === actual) throw new Error(`第 ${position} 位已经是 ${actual}，请使用不同的目标字母。`);
+      changes.set(position, next);
+    }
+
+    const residues = sequence.split('');
+    const marks = [];
+    for (const [position, target] of changes) {
+      marks.push(`${sequence[position - 1]}${position}${target}`);
+      residues[position - 1] = target;
+    }
+    return { kind: 'mutation', sequence: residues.join(''), marks };
+  }
+
+  return { parseInput, runCommand };
+})();
+
+function compareWithIndels(reference, sample) {
+    const referenceLength = reference.length;
+    const sampleLength = sample.length;
+    const counts = { substitutions: 0, insertions: 0, deletions: 0 };
+    const marks = [];
+    const result = {
+      kind: reference === sample ? 'equal' : 'different',
+      marks, referenceLength, sampleLength, counts
+    };
+    if (result.kind === 'equal') return result;
+
+    // Strip equal ends before building the band. Resolving the suffix first
+    // places an isolated indel in a repeat at its earliest equivalent position.
+    let referenceEnd = referenceLength;
+    let sampleEnd = sampleLength;
+    while (referenceEnd && sampleEnd && reference[referenceEnd - 1] === sample[sampleEnd - 1]) {
+      referenceEnd--;
+      sampleEnd--;
+    }
+    let offset = 0;
+    while (offset < referenceEnd && offset < sampleEnd && reference[offset] === sample[offset]) {
+      offset++;
+    }
+    const referenceSize = referenceEnd - offset;
+    const sampleSize = sampleEnd - offset;
+
+    function recordDeletion(first, last) {
+      const firstLabel = reference[first - 1] + first;
+      const range = first === last ? firstLabel : firstLabel + '_' + reference[last - 1] + last;
+      marks.push(range + 'del');
+      counts.deletions += last - first + 1;
+    }
+
+    function recordInsertion(left, start, end) {
+      marks.push(left + '_' + (left + 1) + 'ins' + sample.slice(start, end));
+      counts.insertions += end - start;
+    }
+
+    if (!referenceSize || !sampleSize) {
+      if (referenceSize) recordDeletion(offset + 1, referenceEnd);
+      else recordInsertion(offset, offset, sampleEnd);
+      return result;
+    }
+
+    const diagonal = 1;
+    const deletion = 2;
+    const insertion = 3;
+    const traceCellLimit = 8000000;
+    const rowCount = referenceSize + 1;
+    const allowedWidth = Math.floor(traceCellLimit / rowCount);
+    const fullDistance = Math.max(referenceSize, sampleSize);
+    const maxBand = allowedWidth >= sampleSize + 1
+      ? fullDistance
+      : Math.floor((allowedWidth - 1) / 2);
+    let band = Math.max(1, Math.abs(referenceSize - sampleSize));
+
+    while (band <= maxBand) {
+      const width = Math.min(sampleSize + 1, band * 2 + 1);
+      const trace = new Uint8Array(rowCount * width);
+      let previous = new Int32Array(width);
+      let current = new Int32Array(width);
+      const unreachable = band + 1;
+      let previousStart = 0;
+      let previousEnd = Math.min(sampleSize, band);
+      for (let j = 1; j <= previousEnd; j++) {
+        previous[j] = j;
+        trace[j] = insertion;
+      }
+
+      for (let i = 1; i <= referenceSize; i++) {
+        const start = Math.max(0, i - band);
+        const end = Math.min(sampleSize, i + band);
+        const row = i * width;
+        for (let j = start; j <= end; j++) {
+          const column = j - start;
+          const above = j - previousStart;
+          let cost = unreachable;
+          let direction = diagonal;
+          if (j > previousStart && j - 1 <= previousEnd) {
+            cost = previous[above - 1] + (reference[offset + i - 1] === sample[offset + j - 1] ? 0 : 1);
+          }
+          if (j >= previousStart && j <= previousEnd && previous[above] + 1 < cost) {
+            cost = previous[above] + 1;
+            direction = deletion;
+          }
+          if (column && current[column - 1] + 1 < cost) {
+            cost = current[column - 1] + 1;
+            direction = insertion;
+          }
+          current[column] = cost;
+          trace[row + column] = direction;
+        }
+        const swap = previous;
+        previous = current;
+        current = swap;
+        previousStart = start;
+        previousEnd = end;
+      }
+
+      // Every path with at most "band" edits lies inside this strip.
+      // Once the endpoint is reachable within that cost, traceback is exact.
+      if (previous[sampleSize - previousStart] <= band) {
+        let i = referenceSize;
+        let j = sampleSize;
+        const directionAt = () => trace[i * width + j - Math.max(0, i - band)];
+        while (i || j) {
+          const direction = directionAt();
+          if (direction === deletion) {
+            const last = offset + i;
+            do { i--; } while (i && directionAt() === deletion);
+            recordDeletion(offset + i + 1, last);
+          } else if (direction === insertion) {
+            const end = offset + j;
+            do { j--; } while (j && directionAt() === insertion);
+            recordInsertion(offset + i, offset + j, end);
+          } else {
+            const position = offset + i;
+            const from = reference[position - 1];
+            const to = sample[offset + j - 1];
+            if (from !== to) {
+              marks.push(from + position + to);
+              counts.substitutions++;
+            }
+            i--;
+            j--;
+          }
+        }
+        marks.reverse();
+        return result;
+      }
+      if (band === maxBand) break;
+      band = Math.min(maxBand, band * 2);
+    }
+    throw new Error('这组序列的差异范围超出本地比对容量。请核对参考序列与样本是否对应。');
+  }
+
+(() => {
+  'use strict';
+  const byId = id => document.getElementById(id);
+  const referenceField = byId('reference');
+  const numberedInput = byId('numbered-input');
+  const commandField = byId('commands');
+  const results = byId('results');
+  const comparisonResults = byId('comparison-results');
+  let records = [];
+  let pendingComparison;
+
+  function element(tag, className, content) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (content !== undefined) node.textContent = content;
+    return node;
+  }
+
+  function icon(name) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const graphic = document.createElementNS(ns, 'svg');
+    graphic.setAttribute('class', 'icon');
+    graphic.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS(ns, 'use');
+    use.setAttribute('href', '#' + name);
+    graphic.append(use);
+    return graphic;
+  }
+
+  function resetDesigns() {
+    results.replaceChildren();
+    results.hidden = true;
+    byId('empty').hidden = false;
+    byId('result-summary').textContent = '';
+    byId('announce').textContent = '';
+  }
+
+  function comparisonStatus(title, help) {
+    byId('comparison-empty-title').textContent = title;
+    byId('comparison-empty-help').textContent = help;
+    byId('comparison-empty').hidden = false;
+  }
+
+  function alignInputNumbers() {
+    // clientWidth excludes the scrollbar, just as in the native text area.
+    numberedInput.style.width = referenceField.clientWidth + 'px';
+    numberedInput.style.transform = 'translate(' + -referenceField.scrollLeft + 'px, ' + -referenceField.scrollTop + 'px)';
+  }
+
+  function updateInputNumbers() {
+    const starts = new Map();
+    for (const record of records) {
+      if (record.sequence?.length >= 5) starts.set(record.firstLine, record.lastLine);
+    }
+    const fragment = document.createDocumentFragment();
+    if (starts.size) {
+      // Mirror the exact input (including headers, whitespace and separators)
+      // to keep numbers aligned with editable text through wrapping and scrolling.
+      const parts = referenceField.value.split(/(\r\n|[\r\n\u2028\u2029])/);
+      let lastLine = 0;
+      let position = 0;
+      for (let i = 0; i < parts.length; i += 2) {
+        const line = parts[i];
+        const lineNumber = i / 2 + 1;
+        if (starts.has(lineNumber)) {
+          lastLine = starts.get(lineNumber);
+          position = 0;
+        }
+        let start = 0;
+        if (lineNumber <= lastLine) {
+          for (const match of line.matchAll(/[A-Za-z]/g)) {
+            if (++position % 5 !== 0) continue;
+            const tick = element('span', 'input-tick', match[0]);
+            tick.dataset.position = position;
+            fragment.append(line.slice(start, match.index), tick);
+            start = match.index + 1;
+          }
+        }
+        fragment.append(line.slice(start) + (parts[i + 1] || ''));
+      }
+    }
+    numberedInput.replaceChildren(fragment);
+    alignInputNumbers();
+  }
+
+  function updateInput() {
+    window.clearTimeout(pendingComparison);
+    resetDesigns();
+    comparisonResults.replaceChildren();
+    comparisonResults.hidden = true;
+    byId('comparison-summary').textContent = '';
+    records = SequenceCore.parseInput(referenceField.value);
+    updateInputNumbers();
+    const ref = records[0];
+    const inputError = byId('input-error');
+    inputError.hidden = !ref?.error;
+    inputError.textContent = ref?.error || '';
+    referenceField.setAttribute('aria-invalid', String(Boolean(ref?.error)));
+    byId('ref-count').textContent = ref
+      ? records.length + ' 条序列' + (ref.error ? '' : ' · 参考 ' + ref.sequence.length + ' aa')
+      : '0 条序列';
+
+    if (ref?.error) {
+      comparisonStatus('请检查第一条序列', '更正参考序列后，将自动比较后续样本。');
+    } else if (records.length < 2) {
+      comparisonStatus(ref ? '已识别 1 条参考序列' : '等待序列', '在同一个框中粘贴参考和样本，即可查看差异。');
+    } else {
+      comparisonStatus('正在比较…', '以第一条序列为参考。');
+      pendingComparison = window.setTimeout(runComparison, 100);
+    }
+  }
+
+  function addCopyButton(parent, value, shownText, label) {
+    const row = element('div', 'copy-row');
+    const button = element('button', 'button');
+    button.type = 'button';
+    button.append(icon('copy'), document.createTextNode(label));
+    const status = element('span');
+    status.setAttribute('role', 'status');
+    button.addEventListener('click', async () => {
+      let copied = false;
+      try {
+        if (navigator.clipboard) {
+          await navigator.clipboard.writeText(value);
+          copied = true;
+        }
+      } catch { /* Local-file policies vary by browser. Try native selection copy. */ }
+      if (!button.isConnected) return;
+      if (!copied) {
+        const transfer = element('textarea', 'sr');
+        transfer.value = value;
+        transfer.readOnly = true;
+        document.body.append(transfer);
+        transfer.select();
+        try { copied = document.execCommand('copy'); } catch { /* Manual selection below. */ }
+        transfer.remove();
+        button.focus();
+      }
+      if (!copied) {
+        const range = document.createRange();
+        range.selectNodeContents(shownText);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      status.textContent = copied ? '已复制' : '已选中内容，请按 Ctrl+C 或 ⌘C 复制。';
+    });
+    row.append(button, status);
+    parent.append(row);
+  }
+
+  function item(parent, title, error = false) {
+    const section = element('article', error ? 'result-item error' : 'result-item');
+    section.append(element('h3', '', title));
+    parent.append(section);
+    return section;
+  }
+
+  function showError(parent, title, message) {
+    item(parent, title, true).append(element('p', 'detail', message));
+  }
+
+  function makeNumberedSequence(sequence, positions = []) {
+    const view = element('div', 'numbered-sequence');
+    const changed = new Set(positions);
+    for (let start = 0; start < sequence.length; start += 5) {
+      const end = Math.min(start + 5, sequence.length);
+      const group = element('span', 'residue-group');
+      if (end - start === 5) group.dataset.position = String(end);
+
+      let unmarkedStart = start;
+      for (let i = start; i < end; i++) {
+        if (!changed.has(i + 1)) continue;
+        if (unmarkedStart < i) group.append(sequence.slice(unmarkedStart, i));
+        group.append(element('mark', '', sequence[i]));
+        unmarkedStart = i + 1;
+      }
+      if (unmarkedStart < end) group.append(sequence.slice(unmarkedStart, end));
+      view.append(group);
+    }
+    return view;
+  }
+
+  function showDesign(answer, group) {
+    const prefix = group ? '设计 ' + group + ' · ' : '';
+    if (answer.kind !== 'mutation') {
+      const checked = answer.kind === 'check';
+      const section = item(results, prefix + (checked ? '校验通过' : '位点查询'));
+      const line = element('div', 'answer');
+      line.append(element('span', 'letter', answer.actual), element('span', '', '野生型第 ' + answer.position + ' 位'));
+      section.append(line);
+      return;
+    }
+    const section = item(results, prefix + '突变已完成');
+    section.append(element('p', 'marks', answer.marks.join(', ')));
+    const positions = answer.marks.map(mark => Number(mark.slice(1, -1)));
+    const sequence = makeNumberedSequence(answer.sequence, positions);
+    sequence.classList.add('output-sequence');
+    sequence.setAttribute('aria-label', '完整突变序列');
+    section.append(sequence);
+    addCopyButton(section, answer.sequence, sequence, '复制序列');
+  }
+
+  function runDesigns(ref) {
+    const designs = commandField.value.split(/\r\n|[\r\n\u2028\u2029]/).map(line => line.trim()).filter(Boolean);
+    if (!designs.length) throw new Error('请输入位点或突变指令，例如 2、E2 或 E2A。');
+    designs.forEach((command, index) => {
+      const group = designs.length > 1 ? index + 1 : 0;
+      try {
+        showDesign(SequenceCore.runCommand(ref.sequence, command), group);
+      } catch (error) {
+        showError(results, (group ? '设计 ' + group + ' · ' : '') + command, error.message);
+      }
+    });
+  }
+
+  function runComparison() {
+    const [ref, ...samples] = records;
+    const items = document.createDocumentFragment();
+    let failures = 0;
+    for (const sample of samples) {
+      if (sample.error) {
+        showError(items, sample.name, sample.error);
+        failures++;
+        continue;
+      }
+      try {
+        const diff = compareWithIndels(ref.sequence, sample.sequence);
+        const section = item(items, sample.name);
+        if (diff.kind === 'equal') {
+          section.append(element('p', 'detail', '0 处差异 · 与参考序列一致（' + ref.name + '）'));
+          continue;
+        }
+        const counts = diff.counts;
+        const summary = '相对「' + ref.name + '」共 ' + diff.marks.length + ' 处差异（替换 ' +
+          counts.substitutions + '、插入 ' + counts.insertions + '、缺失 ' + counts.deletions + ' 个氨基酸）';
+        const marks = element('p', 'marks', diff.marks.join(', '));
+        section.append(element('p', 'detail', summary), marks);
+        addCopyButton(section, marks.textContent, marks, '复制标记');
+      } catch (error) {
+        showError(items, sample.name, error.message);
+        failures++;
+      }
+    }
+    comparisonResults.replaceChildren(items);
+    comparisonResults.hidden = false;
+    comparisonResults.scrollTop = 0;
+    byId('comparison-empty').hidden = true;
+    byId('comparison-summary').textContent = samples.length + ' 个样本' + (failures ? ' · ' + failures + ' 项需检查' : '');
+  }
+
+  function execute() {
+    resetDesigns();
+    try {
+      if (!records.length) throw new Error('请先在序列框中粘贴参考序列。');
+      if (records[0].error) throw new Error(records[0].error);
+      runDesigns(records[0]);
+    } catch (error) {
+      showError(results, '请检查输入', error.message);
+    }
+    results.hidden = false;
+    byId('empty').hidden = true;
+    results.scrollTop = 0;
+    const errors = results.querySelectorAll('.error').length;
+    let summary = results.childElementCount + ' 项结果';
+    if (errors) summary += ' · ' + errors + ' 项需检查';
+    byId('result-summary').textContent = summary;
+    byId('announce').textContent = summary + '。' + results.firstElementChild.querySelector('h3').textContent;
+    if (window.matchMedia('(max-width: 730px)').matches) byId('result-panel').scrollIntoView({block: 'start'});
+  }
+
+  function addExamples() {
+    const examples = [
+      ['查询位点', '2'], ['核对原氨基酸', 'E2'],
+      ['单点突变', 'E2A'], ['多点突变', 'E2A, T4S']
+    ];
+    for (const [label, command] of examples) {
+      const button = element('button', 'example');
+      button.type = 'button';
+      button.title = '填入指令 ' + command;
+      button.append(element('span', '', label), element('code', '', command), icon('chevron'));
+      button.addEventListener('click', () => {
+        commandField.value = command;
+        resetDesigns();
+        commandField.focus();
+      });
+      byId('examples').append(button);
+    }
+  }
+
+  function loadDemo() {
+    if ((referenceField.value.trim() || commandField.value.trim()) &&
+        !window.confirm('载入示例会替换当前序列和位点指令。继续载入？')) return;
+    referenceField.value = '>野生型示例\nMEKTVAGLDPQ\n>双点突变\nMAKSVAGLDPQ\n>插入示例\nMEGKTVAGLDPQ\n>缺失示例\nMKTVAGLDPQ';
+    commandField.value = '2\nE2\nE2A, T4S';
+    updateInput();
+    execute();
+  }
+
+  referenceField.addEventListener('input', updateInput);
+  referenceField.addEventListener('scroll', alignInputNumbers, {passive: true});
+  if (typeof ResizeObserver === 'function') {
+    new ResizeObserver(alignInputNumbers).observe(referenceField);
+  } else {
+    window.addEventListener('resize', alignInputNumbers);
+  }
+  commandField.addEventListener('input', resetDesigns);
+  commandField.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+      event.preventDefault();
+      execute();
+    }
+  });
+  byId('execute').addEventListener('click', execute);
+  byId('demo').addEventListener('click', loadDemo);
+  addExamples();
+  updateInput();
+})();
+</script>
+</body>
+</html>
