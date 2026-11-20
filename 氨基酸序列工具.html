@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Residue · 氨基酸序列工具</title>
+  <title>Residue · 氨基酸序列工具 v0.2</title>
   <style>
 :root {
   color-scheme: light;
@@ -43,6 +43,7 @@ button:focus-visible, summary:focus-visible, textarea:focus-visible, [tabindex]:
 .brand-mark { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; color: #fff; background: var(--green); }
 .brand-mark .icon { width: 21px; height: 21px; }
 .brand-name { font-size: 17px; font-weight: 700; letter-spacing: -.025em; }
+.brand-version { color: var(--muted); font: 12px var(--mono); white-space: nowrap; }
 .brand-sub { border-left: 1px solid var(--line); padding-left: 12px; color: var(--muted); font-size: 12px; }
 main.shell { padding-block: 16px 36px; }
 .button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 7px; min-height: 36px; max-width: 100%; padding: 6px 13px; border: 1px solid #ced9d0; border-radius: 7px; background: #fff; color: #30463a; font-size: 13px; font-weight: 600; line-height: 1.45; text-decoration: none; }
@@ -119,6 +120,7 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line); bord
 .residue-group { position: relative; display: inline-block; vertical-align: top; margin: 0 .8ch .2em 0; padding-top: .95em; white-space: nowrap; }
 .residue-group[data-position]::after { content: attr(data-position); content: attr(data-position) / ""; position: absolute; top: .1em; right: 0; color: #597164; font: 10px/1 var(--mono); pointer-events: none; -webkit-user-select: none; user-select: none; }
 .output-sequence { width: 100%; margin: 11px 0 0; padding: 9px 12px 7px; border: 1px solid var(--soft-line); border-radius: 6px; background: #fff; }
+.single-line-sequence { overflow-x: auto; white-space: pre; overflow-wrap: normal; color: #253e2f; font: 14px/1.45 var(--mono); }
 .numbered-sequence mark { border-radius: 2px; background: #cce8d6; color: #164d32; font-weight: 700; }
 .copy-row { justify-content: flex-end; flex-wrap: wrap; margin-top: 9px; }
 .copy-row .button { min-height: 30px; padding: 4px 9px; font-size: 12px; }
@@ -144,6 +146,8 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line); bord
   #results, #comparison-results { max-height: none; overflow: visible; }
 }
 @media (max-width: 480px) {
+  .top > .shell { gap: 8px; }
+  .brand { gap: 6px; }
   .brand-sub { display: none; }
   .workspace { margin-top: 12px; gap: 12px; }
 }
@@ -178,6 +182,7 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line); bord
     <div class="brand">
       <span class="brand-mark" aria-hidden="true"><svg class="icon" focusable="false"><use href="#chain"/></svg></span>
       <span class="brand-name" lang="en">Residue</span>
+      <span class="brand-version">v0.2</span>
       <span class="brand-sub">氨基酸序列工具</span>
     </div>
     <button id="demo" class="button" type="button"><svg class="icon" aria-hidden="true" focusable="false"><use href="#demo-icon"/></svg>载入示例</button>
@@ -209,8 +214,8 @@ kbd { display: inline-block; padding: 0 5px; border: 1px solid var(--line); bord
         <h2 id="command-heading" class="card-title"><svg class="icon" aria-hidden="true" focusable="false"><use href="#position-icon"/></svg><label for="commands">位点查询与突变</label></h2>
       </div>
       <div id="examples" class="examples" role="group" aria-label="指令示例"></div>
-      <textarea id="commands" rows="2" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="command-help command-keys" placeholder="输入位点或突变指令，例如 E2A, T4S"></textarea>
-      <p id="command-help" class="hint">同一行用逗号或空格组合多个突变。每行独立处理，均作用于第一条序列。</p>
+      <textarea id="commands" rows="2" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="command-help command-keys" placeholder="输入位点或突变指令，例如 E2A/T4S"></textarea>
+      <p id="command-help" class="hint">同一行用 /、逗号或空格组合多个突变，每行独立处理。只粘贴一条序列时，可留空执行，输出单行氨基酸序列。</p>
       <div class="editor-foot">
         <span id="command-keys" class="hint"><kbd>Enter</kbd> 执行 · <kbd>Shift+Enter</kbd> 换行</span>
         <button id="execute" class="button primary" type="button">执行指令<svg class="icon" aria-hidden="true" focusable="false"><use href="#arrow-right"/></svg></button>
@@ -385,7 +390,7 @@ const SequenceCore = (() => {
   function runCommand(sequence, raw) {
     const input = raw.trim();
     if (!input) throw new Error('请输入位点或突变指令，例如 43、E43 或 E43A。');
-    const tokens = input.split(/[\s,，]+/);
+    const tokens = input.split(/[\s,，/／]+/);
     const changes = new Map();
 
     for (const token of tokens) {
@@ -758,7 +763,7 @@ function compareWithIndels(reference, sample) {
       return;
     }
     const section = item(results, prefix + '突变已完成');
-    section.append(element('p', 'marks', answer.marks.join(', ')));
+    section.append(element('p', 'marks', answer.marks.join('/')));
     const positions = answer.marks.map(mark => Number(mark.slice(1, -1)));
     const sequence = makeNumberedSequence(answer.sequence, positions);
     sequence.classList.add('output-sequence');
@@ -769,7 +774,16 @@ function compareWithIndels(reference, sample) {
 
   function runDesigns(ref) {
     const designs = commandField.value.split(/\r\n|[\r\n\u2028\u2029]/).map(line => line.trim()).filter(Boolean);
-    if (!designs.length) throw new Error('请输入位点或突变指令，例如 2、E2 或 E2A。');
+    if (!designs.length) {
+      if (records.length !== 1) throw new Error('当前有多条序列。请输入位点或突变指令，例如 2、E2 或 E2A。');
+      const section = item(results, '单行序列');
+      const sequence = element('pre', 'output-sequence single-line-sequence', ref.sequence);
+      sequence.tabIndex = 0;
+      sequence.setAttribute('aria-label', '单行氨基酸序列');
+      section.append(sequence);
+      addCopyButton(section, ref.sequence, sequence, '复制序列');
+      return;
+    }
     designs.forEach((command, index) => {
       const group = designs.length > 1 ? index + 1 : 0;
       try {
@@ -800,7 +814,7 @@ function compareWithIndels(reference, sample) {
         const counts = diff.counts;
         const summary = '相对「' + ref.name + '」共 ' + diff.marks.length + ' 处差异（替换 ' +
           counts.substitutions + '、插入 ' + counts.insertions + '、缺失 ' + counts.deletions + ' 个氨基酸）';
-        const marks = element('p', 'marks', diff.marks.join(', '));
+        const marks = element('p', 'marks', diff.marks.join('/'));
         section.append(element('p', 'detail', summary), marks);
         addCopyButton(section, marks.textContent, marks, '复制标记');
       } catch (error) {
@@ -838,7 +852,7 @@ function compareWithIndels(reference, sample) {
   function addExamples() {
     const examples = [
       ['查询位点', '2'], ['核对原氨基酸', 'E2'],
-      ['单点突变', 'E2A'], ['多点突变', 'E2A, T4S']
+      ['单点突变', 'E2A'], ['多点突变', 'E2A/T4S']
     ];
     for (const [label, command] of examples) {
       const button = element('button', 'example');
@@ -858,7 +872,7 @@ function compareWithIndels(reference, sample) {
     if ((referenceField.value.trim() || commandField.value.trim()) &&
         !window.confirm('载入示例会替换当前序列和位点指令。继续载入？')) return;
     referenceField.value = '>野生型示例\nMEKTVAGLDPQ\n>双点突变\nMAKSVAGLDPQ\n>插入示例\nMEGKTVAGLDPQ\n>缺失示例\nMKTVAGLDPQ';
-    commandField.value = '2\nE2\nE2A, T4S';
+    commandField.value = '2\nE2\nE2A/T4S';
     updateInput();
     execute();
   }
